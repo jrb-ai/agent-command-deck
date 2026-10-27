@@ -42,7 +42,7 @@ it could be read. Otherwise it keeps going until you deal with it; set
 The six keys are interchangeable. A key is not tied to an agent — you
 assign a session to it, and it takes that session's colour:
 
-| | |
+| Running in the session | Key colour |
 |---|---|
 | claude | orange |
 | codex | azure |
