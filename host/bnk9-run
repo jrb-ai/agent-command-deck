@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# Copyright 2026 Jon Regan-Beasley
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""bnk9-run - PTY wrapper reporting activity for hook-less agents (ollama).
+
+Runs the wrapped command in a pseudo-terminal, mirrors its I/O, and tells
+bnk9d when output is flowing ("running") versus quiet ("input", i.e. the
+REPL is waiting at its prompt). Reports "ended" when the child exits.
+
+Usage: bnk9-run <slot> -- <command> [args...]
+"""
+
+import json
+import os
+import pty
+import socket
+import sys
+import threading
+import time
+
+SILENCE_SECS = 1.2
+
+
+def report(slot: int, state: str) -> None:
+    sock_path = os.path.expanduser("~/.bnk9/bnk9d.sock")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            sock.connect(sock_path)
+            sock.sendall(json.dumps({"slot": slot, "state": state}).encode())
+    except OSError:
+        pass
+
+
+def main() -> int:
+    try:
+        slot = int(sys.argv[1])
+        sep = sys.argv.index("--")
+        argv = sys.argv[sep + 1:]
+        assert argv
+    except (ValueError, IndexError, AssertionError):
+        print("usage: bnk9-run <slot> -- <command> [args...]", file=sys.stderr)
+        return 2
+
+    state = {"name": "running", "last_output": time.monotonic()}
+    lock = threading.Lock()
+
+    def master_read(fd: int) -> bytes:
+        data = os.read(fd, 4096)
+        with lock:
+            state["last_output"] = time.monotonic()
+            if state["name"] != "running":
+                state["name"] = "running"
+                report(slot, "running")
+        return data
+
+    def watcher() -> None:
+        while True:
+            time.sleep(0.3)
+            with lock:
+                quiet = time.monotonic() - state["last_output"] > SILENCE_SECS
+                if quiet and state["name"] == "running":
+                    state["name"] = "input"
+                    report(slot, "input")
+
+    threading.Thread(target=watcher, daemon=True).start()
+    status = pty.spawn(argv, master_read)
+    report(slot, "ended")
+    return os.waitstatus_to_exitcode(status)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

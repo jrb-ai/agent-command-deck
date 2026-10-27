@@ -1,0 +1,53 @@
+name: Build BNK9 firmware
+
+on:
+  push:
+    paths:
+      - "keyboards/**"
+      - "qmk.json"
+      - ".github/workflows/build.yml"
+  pull_request:
+    paths:
+      - "keyboards/**"
+      - "qmk.json"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned so an upstream change cannot break or silently alter the build.
+  # Bump both together and check the keymap still compiles.
+  QMK_FIRMWARE_REF: "0.34.7"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli:1.2.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone qmk_firmware
+        run: |
+          git clone --depth 1 --branch "$QMK_FIRMWARE_REF" \
+            https://github.com/qmk/qmk_firmware.git /qmk_firmware
+          cd /qmk_firmware
+          git submodule update --init --depth 1 \
+            lib/pico-sdk lib/chibios lib/chibios-contrib lib/printf lib/lufa
+
+      - name: Install keymap
+        run: |
+          cp -r keyboards/binepad/bnk9/keymaps/agentknob \
+            /qmk_firmware/keyboards/binepad/bnk9/keymaps/agentknob
+
+      - name: Compile
+        run: |
+          cd /qmk_firmware
+          qmk compile -kb binepad/bnk9 -km agentknob
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bnk9_agentknob
+          path: /qmk_firmware/binepad_bnk9_agentknob.uf2
+          if-no-files-found: error
