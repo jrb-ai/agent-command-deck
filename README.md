@@ -1,7 +1,7 @@
-# BNK9 agent knob
+# Agent Command Deck
 
-Binepad BNK9 (3×3 keys + push knob) as a control surface for coding
-agents on macOS: six interchangeable session keys, accept / cancel /
+A physical control surface for coding agents on macOS, built on the
+Binepad BNK9 (3×3 keys + push knob): six interchangeable session keys, accept / cancel /
 slash-command, and a knob that scrolls or sets the agent's effort level.
 
 **Requirements:** a Binepad BNK9, macOS with Terminal.app (other
